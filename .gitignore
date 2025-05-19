@@ -1,0 +1,17 @@
+Source Files/
+Results/
+Backup/
+chrome/
+Errors/
+__pycache__/
+.venv/
+.git
+*.exe
+*.lnk
+*.log
+*.sqlite3
+*.env
+screenshots/
+logs/
+.vscode/
+csv/

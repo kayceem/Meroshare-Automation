@@ -10,6 +10,9 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from contextlib import contextmanager
+from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.core.utils import read_version_from_cmd 
+from webdriver_manager.core.os_manager import PATTERN
 
 def get_dir_path() -> Path:
     return Path(__file__).parent.parent
@@ -17,16 +20,15 @@ def get_dir_path() -> Path:
 @contextmanager
 def create_browser(headless: bool = True): 
         BINARY_PATH = get_dir_path() / "chrome/chrome"
-        DRIVER_PATH = get_dir_path() / "chrome/chromedriver"
-        if not BINARY_PATH.exists() or not DRIVER_PATH.exists():
+        if not BINARY_PATH.exists():
             setup_chrome_and_driver(get_dir_path())
-        if not BINARY_PATH.exists() or not DRIVER_PATH.exists():
-            return False
+        version = read_version_from_cmd(f"{BINARY_PATH} --version", PATTERN["google-chrome"])
+        print(f"Chrome Version: {version}")
         
-        ser = Service(str(DRIVER_PATH))
         option = Options()
         option.binary_location = str(BINARY_PATH)
         option.use_chromium = True
+        ser = Service(ChromeDriverManager(driver_version=version).install())
         if headless:
             option.add_argument("headless")
         option.add_experimental_option("excludeSwitches", ["enable-logging"])

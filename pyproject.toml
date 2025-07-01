@@ -28,5 +28,6 @@ dependencies = [
     "trio==0.22.0",
     "trio-websocket==0.10.2",
     "urllib3==1.26.15",
+    "webdriver-manager>=4.0.2",
     "wsproto==1.2.0",
 ]

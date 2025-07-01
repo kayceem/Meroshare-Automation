@@ -1,62 +1,58 @@
-from os import system, path, mkdir
-from cryptography.fernet import Fernet
-import stdiomask, base64
+import os
+import stdiomask
+from database.database import get_db
+from database.models import User
+from utils.helpers import get_dir_path, get_fernet_key, get_logger
+from dotenv import load_dotenv
 
-user_data = []
-USER_NAME = []
+load_dotenv()
+
+
+USERS = []
 options = ["1", "2", "3", "4", "5"]
 sub_options = ["1", "2", "3", "4"]
+DIR_PATH = get_dir_path()
 
-key = ""
+log = get_logger("generator")
 
-
+fernet = get_fernet_key()
+if not fernet:
+    log.error("Key not found")
+    exit(1)
+    
 def clear_screen():
-    system("clear")
-
-
-def check_for_key():
-    try:
-        with open("./Source Files/key.key", "r", encoding="utf-8") as fp:
-            lines = fp.read().splitlines()
-            key = lines[0]
-            if len(base64.urlsafe_b64decode(key)) != 32:
-                raise Exception("Invalid key!")
-            for line in lines[1:]:
-                if len(line) != 0:
-                    raise Exception("No key Found!")
-        return key
-    except:
-        try:
-            with open("./Source Files/key.key", "w", encoding="utf-8") as fp:
-                key = Fernet.generate_key().decode()
-                fp.write(key)
-                return key
-        except:
-            return False
-
+    if os.name == 'nt':
+        os.system('cls')
+    else:
+        os.system('clear')
 
 def load_data_base():
     try:
-        with open("./Source Files/dataBase.txt", "r", encoding="utf-8") as fp:
-            lines = fp.read().splitlines()
-            for line in lines:
-                data = line.split(",")
-                if len(data) != 7:
-                    continue
-                user_data.append(data)
-                USER_NAME.append(data[0])
-        return True
+        with get_db() as db:
+            users = db.query(User).all()
+            if not users:
+                return False
+            for user in users:
+                user_dict = {
+                    "name": user.name,
+                    "dp": user.dp,
+                    "boid": user.boid,
+                    "passsword": user.passsword,
+                    "crn": user.crn,
+                    "pin": user.pin,
+                    "account": user.account
+                }
+                USERS.append(user_dict)
+            return True
     except:
         return False
 
 
-def display_user_data(usr=0):
+def display_user_data():
     clear_screen()
-    if usr == 0:
-        usr = user_data
-        print("-" * 50)
-    for NAME, DP, USERNAME, _, _, _ ,_ in usr:
-        print(f"-> {NAME} | {DP} | {USERNAME} ")
+    print("-" * 50)
+    for user in USERS:
+        print(f"-> {user.get('name')} | {user.get('dp')} | {user.get('boid')} ")
         print()
     print("-" * 50)
 
@@ -94,7 +90,7 @@ def sub_menu(user_exists=0):
     while True:
         try:
             dp = int(input("Enter DP: ").strip())
-            id = int(input("Enter ID: ").strip())
+            id = int(input("Enter BOID: ").strip())
             pin = int(stdiomask.getpass("Enter pin: ").strip())
             account_number = input("Enter account number: ").strip()
             break
@@ -105,18 +101,23 @@ def sub_menu(user_exists=0):
 
     passwd = stdiomask.getpass("Enter passwd: ").strip()
     crn = input("Enter crn: ").strip()
-    fer = Fernet(key)
-    passwd = fer.encrypt(passwd.encode()).decode()
-    pin = fer.encrypt(str(pin).encode()).decode()
-    user_data.append([name, dp, id, passwd, crn, pin, account_number])
+    passwd = fernet.encrypt(passwd.encode()).decode()
+    pin = fernet.encrypt(str(pin).encode()).decode()
+    USERS.append({
+        "name": name.upper(),
+        "dp": dp,
+        "boid": id,
+        "passsword": passwd,
+        "crn": crn,
+        "pin": pin,
+        "account": account_number
+    })
+    print(USERS[-1])
     return True
-    # except:
-    #     return False
-
 
 def check_user(user_name):
-    for name in USER_NAME:
-        if name.upper() == user_name:
+    for user in USERS:
+        if user.get('name').upper() == user_name:
             return True
     return False
 
@@ -129,29 +130,27 @@ def update_pin_or_passwd(user_name, pin=0, passwd=0, crn=0):
         while True:
             try:
                 new_pin = int(input("Enter new pin:").strip())
-                fer = Fernet(key)
-                new_pin = fer.encrypt(str(new_pin).encode()).decode()
+                new_pin = fernet.encrypt(str(new_pin).encode()).decode()
                 break
             except:
                 return False
-        for user in user_data:
-            if user_name != user[0].upper():
+        for user in USERS:
+            if user_name != user.get('name').upper():
                 continue
-            user[5] = new_pin
+            user['pin'] = new_pin
             return True
     if passwd == 1:
         while True:
             try:
                 new_passwd = input("Enter new password:").strip()
-                fer = Fernet(key)
-                new_passwd = fer.encrypt(new_passwd.encode()).decode()
+                new_passwd = fernet.encrypt(new_passwd.encode()).decode()
                 break
             except:
                 return False
-        for user in user_data:
-            if user_name != user[0].upper():
+        for user in USERS:
+            if user_name != user.get('name').upper():
                 continue
-            user[3] = new_passwd
+            user['password'] = new_passwd
             return True
     if crn == 1:
         while True:
@@ -160,10 +159,10 @@ def update_pin_or_passwd(user_name, pin=0, passwd=0, crn=0):
                 break
             except:
                 return False
-        for user in user_data:
-            if user_name != user[0].upper():
+        for user in USERS:
+            if user_name != user.get('name').upper():
                 continue
-            user[4] = new_crn
+            user['crn'] = new_crn
             return True
 
 
@@ -219,39 +218,44 @@ def add_user():
 
 def delete_user():
     name = input("Enter name of user: ").upper()
-    for data in user_data:
-        if name in data[0].upper():
-            user_data.remove(data)
+    for user in USERS:
+        if name == user.get('name').upper():
+            with get_db() as db:
+                db.query(User).filter(User.name == user.get('name')).delete()
+                db.commit()
             return True
     return False
 
 
 def update_data_base():
-    with open("./Source Files/dataBase.txt", "w", encoding="utf-8") as fp:
-        for NAME, DP, USERNAME, PASSWD, CRN, PIN, ACCOUNT_NUMBER in user_data:
-            fp.write(f"{NAME},{DP},{USERNAME},{PASSWD},{CRN},{PIN},{ACCOUNT_NUMBER}\n")
-
+    with get_db() as db:
+        for user in USERS:
+            user_obj = db.query(User).filter(User.name == user.get('name')).first()
+            if not user_obj:
+                user_obj = User(**user)
+                db.add(user_obj)
+                db.commit()
+                continue
+            user_obj.dp = user.get('dp')
+            user_obj.name = user.get('name')
+            user_obj.passsword = user.get('passsword')
+            user_obj.crn = user.get('crn')
+            user_obj.pin = user.get('pin')
+            user_obj.account = user.get('account')
+            db.commit()
 
 def main():
-    global key
-    if not path.isdir("Source Files"):
-        mkdir("Source Files")
-    key = check_for_key()
-    if not key:
-        print("Key not found!")
-        exit(1)
+    users_exists = load_data_base()
 
-    loaded = load_data_base()
-
-    if not loaded:
+    if not users_exists:
         print("No data Base available!")
         print()
         print("Press Enter to Continue")
         input()
+        return
 
-    if loaded:
-        display_user_data()
-        input()
+    display_user_data()
+    input()
 
     while True:
         option = menu()

@@ -17,8 +17,8 @@ from utils.helpers import create_browser, get_dir_path, get_fernet_key, get_logg
 from dotenv import load_dotenv
 
 load_dotenv()
-log = get_logger('ipo-result')
-DIR_PATH = get_dir_path()
+log = None
+DIR_PATH = None 
 
 
 def update_database(data, USER_ID):
@@ -204,6 +204,11 @@ def start(user, lock):
 
 
 def ipo_result():
+    global log, DIR_PATH
+    
+    log = get_logger("ipo-result")
+    DIR_PATH = get_dir_path()
+    
     lock = RLock()
     WAIT_TIME = 3
 

@@ -16,8 +16,8 @@ from dotenv import load_dotenv
 
 
 load_dotenv()
-log = get_logger('edis')
-DIR_PATH = get_dir_path()
+log = None
+DIR_PATH = None 
 
 def save_screenshot(browser, NAME):
     now = get_time()
@@ -259,6 +259,9 @@ def start(user, headless):
 
 
 def edis(user, headless):
+    global log, DIR_PATH
+    log = get_logger('edis')
+    DIR_PATH = get_dir_path()
     user_data = []
     WAIT_TIME = 3
 

@@ -245,72 +245,73 @@ def login(browser, DP, USERNAME, PASSWD):
 
 
 def start(user, lock, headless):
-    NAME, DP, USERNAME, PASSWD, _, _, _, _ = user
-
-    with create_browser(headless) as browser:
-
+    try:
+        NAME, DP, USERNAME, PASSWD, _, _, _, _ = user
         log.info(f"Starting for user {NAME} ")
-        for attempt in range(4):
-            try:
-                browser.get("https://meroshare.cdsc.com.np/#/login")
-                WebDriverWait(browser, 5).until(EC.presence_of_element_located((By.ID, "username")))
-                log.info(f"Connection established for user {NAME} ")
-                sleep(0.5)
-                break
-            except Exception as e:
-                log.info(f"Connection attempt {attempt + 1} failed for user {NAME}")
-                if attempt == 3:
-                    log.info(f"Connection could not be established for user {NAME} after {attempt} attempts")
+
+        with create_browser(headless) as browser:
+
+            for attempt in range(4):
+                try:
+                    browser.get("https://meroshare.cdsc.com.np/#/login")
+                    WebDriverWait(browser, 5).until(EC.presence_of_element_located((By.ID, "username")))
+                    log.info(f"Connection established for user {NAME} ")
+                    sleep(0.5)
+                    break
+                except Exception as e:
+                    log.info(f"Connection attempt {attempt + 1} failed for user {NAME}")
+                    if attempt == 3:
+                        log.info(f"Connection could not be established for user {NAME} after {attempt} attempts")
+                        return False
+
+            for attempt in range(4):
+                try:
+                    logged_in = login(browser, DP, USERNAME, PASSWD)
+                    if not logged_in:
+                        raise Exception
+                    log.info(f"Logged in for {NAME} ")
+                    break
+                except:
+                    current_url = browser.current_url
+                    if "accountExpire" in current_url:
+                        save_screenshot(browser, NAME.lower(), "Expired")
+                        account = current_url.split("/")[-1]
+                        log.error(f"{account}  for {NAME}")
+                        return False
+
+                    if "PasswordChange" in current_url:
+                        save_screenshot(browser, NAME.lower(), "PasswordChange")
+                        account = current_url.split("/")[-1]
+                        log.error(f"{account} for {NAME}")
+                        return False
+                    
+                    save_screenshot(browser, NAME.lower(), f"Login")
+                    browser.get("https://meroshare.cdsc.com.np/#/login")
+                    login_failed += 1
+                    log.info(f"Problem Logging in {NAME}")
+
+            # Checks for companies available
+            if logged_in:
+                companies_available = check_for_companies(browser, lock, NAME)
+                if companies_available == "not_authorized":
+                    log.info(f"User unauthorized {NAME}")
                     return False
 
-        for attempt in range(4):
-            try:
-                logged_in = login(browser, DP, USERNAME, PASSWD)
-                if not logged_in:
-                    raise Exception
-                log.info(f"Logged in for {NAME} ")
-                break
-            except:
-                current_url = browser.current_url
-                if "accountExpire" in current_url:
-                    save_screenshot(browser, NAME.lower(), "Expired")
-                    account = current_url.split("/")[-1]
-                    log.error(f"{account}  for {NAME}")
-                    return False
-
-                if "PasswordChange" in current_url:
-                    save_screenshot(browser, NAME.lower(), "PasswordChange")
-                    account = current_url.split("/")[-1]
-                    log.error(f"{account} for {NAME}")
-                    return False
-                
-                save_screenshot(browser, NAME.lower(), f"Login")
-                browser.get("https://meroshare.cdsc.com.np/#/login")
-                login_failed += 1
-                log.info(f"Problem Logging in {NAME}")
-
-        # Checks for companies available
-        if logged_in:
-            companies_available = check_for_companies(browser, lock, NAME)
-            if companies_available == "not_authorized":
-                log.info(f"User unauthorized {NAME}")
+            if not companies_available:
+                log.info(f"Exited for user {NAME}")
                 return False
 
-        if not companies_available:
-            log.info(f"Exited for user {NAME}")
-            return False
+            check_to_apply(browser, user, companies_available, lock)
 
-        check_to_apply(browser, user, companies_available, lock)
-
-        # Quiting the browser
-        log.info(f"Completed for user {NAME} ")
-        return True
-
+            # Quiting the browser
+            log.info(f"Completed for user {NAME} ")
+            return True
+    except Exception as e:
+        log.error(f"Error: {e}")
+        return False
 
 def ipo(skip_input, headless):
-    global DIR_PATH 
-    global log 
-    
+    global DIR_PATH, log 
     DIR_PATH = get_dir_path()
     log = get_logger("ipo")
 
@@ -341,7 +342,7 @@ def ipo(skip_input, headless):
     executor = ThreadPoolExecutor()
     # print(executor._max_workers)
     # print(os.cpu_count())
-    for user in user_data:
+    for user in user_data[:1]:
         executor.submit(start, user, lock, headless)
         sleep(WAIT_TIME)
     executor.shutdown(wait=True)

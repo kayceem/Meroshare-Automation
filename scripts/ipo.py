@@ -38,18 +38,23 @@ def save_screenshot(browser, NAME, name, share_applied=""):
     return
 
 def update_database(username,user_id, applied_shares):
-    if len(applied_shares) == 0:
-        return
-    with get_db() as db:
-        for shares in applied_shares:
-            ipo_name, _, _, ipo, share_type, button = shares
-            existing_entry = db.query(Application).filter(Application.name == username and Application.ipo_name == ipo_name).first()
-            if existing_entry:
-                existing_entry.button = button
-                existing_entry.share_type = share_type
-            else:
-                db.add(Application(user_id=user_id, name=username, ipo_name=ipo_name, ipo=ipo, share_type=share_type, button=button))
-        db.commit()
+    try:
+        log.info(f"Updating database for {username}")
+        if len(applied_shares) == 0:
+            return
+        with get_db() as db:
+            for shares in applied_shares:
+                ipo_name, _, _, ipo, share_type, button = shares
+                existing_entry = db.query(Application).filter(Application.name == username and Application.ipo_name == ipo_name).first()
+                if existing_entry:
+                    existing_entry.button = button
+                    existing_entry.share_type = share_type
+                else:
+                    db.add(Application(user_id=user_id, name=username, ipo_name=ipo_name, ipo=ipo, share_type=share_type, button=button))
+            db.commit()
+        log.info(f"Database updated for {username}")
+    except Exception as e:
+        log.error(f"Error updating database for {username}: {e}")
     return
 
 

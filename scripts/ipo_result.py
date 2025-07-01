@@ -33,6 +33,7 @@ def update_database(data, USER_ID):
                     result = Result(script=script)
                     db.add(result)
                     db.commit()
+                    db.refresh(result)
                 for value in values:
                     user_result_value = value[0] + " - " + value[1]
                     user_result = (db.query(UserResult).filter(UserResult.user_id == USER_ID,UserResult.type == value[2],UserResult.result_id == result.id,).first())
@@ -190,10 +191,6 @@ def start(user, lock):
             with lock:
                 log.info(f"Exited for user {NAME}")
             return False
-
-        #  Check result available companies
-        with lock:
-            log.debug(f"Checking results for {NAME}")
 
         results = check_result(browser, companies_to_check, lock, NAME)
 

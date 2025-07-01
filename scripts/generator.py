@@ -49,6 +49,9 @@ def load_data_base():
 
 
 def display_user_data():
+    if not USERS:
+        print("No users found!")
+        return
     clear_screen()
     print("-" * 50)
     for user in USERS:
@@ -112,7 +115,6 @@ def sub_menu(user_exists=0):
         "pin": pin,
         "account": account_number
     })
-    print(USERS[-1])
     return True
 
 def check_user(user_name):
@@ -252,7 +254,6 @@ def main():
         print()
         print("Press Enter to Continue")
         input()
-        return
 
     display_user_data()
     input()

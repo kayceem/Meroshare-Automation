@@ -59,6 +59,7 @@ def get_logger(app="app", level=logging.DEBUG):
     )
     logging.getLogger('selenium').setLevel(logging.ERROR)
     logging.getLogger('urllib3').setLevel(logging.ERROR)
+    logging.getLogger('logger').setLevel(logging.ERROR)
 
     log = logging.getLogger(__name__)
     return log

@@ -342,7 +342,7 @@ def ipo(skip_input, headless):
     executor = ThreadPoolExecutor()
     # print(executor._max_workers)
     # print(os.cpu_count())
-    for user in user_data[:1]:
+    for user in user_data:
         executor.submit(start, user, lock, headless)
         sleep(WAIT_TIME)
     executor.shutdown(wait=True)

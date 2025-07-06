@@ -137,7 +137,7 @@ def update_pin_or_passwd(user_name, pin=0, passwd=0, crn=0):
             except:
                 return False
         for user in USERS:
-            if user_name != user.get('name').upper():
+            if user_name.upper() != user.get('name').upper():
                 continue
             user['pin'] = new_pin
             return True
@@ -150,9 +150,9 @@ def update_pin_or_passwd(user_name, pin=0, passwd=0, crn=0):
             except:
                 return False
         for user in USERS:
-            if user_name != user.get('name').upper():
+            if user_name.upper() != user.get('name').upper():
                 continue
-            user['password'] = new_passwd
+            user['passsword'] = new_passwd
             return True
     if crn == 1:
         while True:

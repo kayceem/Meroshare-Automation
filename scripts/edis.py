@@ -81,11 +81,13 @@ def calculate_holding_days(browser, NAME, scripts):
         search_button = WebDriverWait(browser, 5).until(EC.presence_of_element_located((By.XPATH, "//*[@id='main']/div/app-my-purchase/div/div[2]/app-my-holdings/div/form/div/div/div/div/div/div[2]/button[1]")))
         search_button.click()
         sleep(0.5)
-
-        select_all_box = WebDriverWait(browser, 5).until(EC.presence_of_element_located((By.XPATH, "//*[@id='main']/div/app-my-purchase/div/div[2]/app-my-holdings/div/div/div/div/div/table/thead/tr/th[2]/input")))
-        select_all_box.click()
-        sleep(0.5)
-
+        try:
+            select_all_box = WebDriverWait(browser, 5).until(EC.presence_of_element_located((By.XPATH, "//*[@id='main']/div/app-my-purchase/div/div[2]/app-my-holdings/div/div/div/div/div/table/thead/tr/th[2]/input")))
+            select_all_box.click()
+            sleep(0.5)
+        except:
+            log.debug(f"Unable to select all for {script} for {NAME}")
+            continue
         proceed_button = WebDriverWait(browser, 5).until(EC.presence_of_element_located((By.XPATH, "//*[@id='main']/div/app-my-purchase/div/div[2]/app-my-holdings/div/button")))
         proceed_button.click()
         sleep(0.5)
@@ -113,10 +115,13 @@ def calculate_wacc(browser, NAME, scripts):
 
         select_script.send_keys(Keys.RETURN)
         sleep(0.5)
-
-        select_all_box = WebDriverWait(browser, 5).until(EC.presence_of_element_located((By.XPATH, "//*[@id='main']/div/app-my-purchase/div/div[2]/app-my-purchase-direct/div/div/div/div/div[2]/table/thead/tr/th[2]/input")))
-        select_all_box.click()
-        sleep(0.5)
+        try:
+            select_all_box = WebDriverWait(browser, 5).until(EC.presence_of_element_located((By.XPATH, "//*[@id='main']/div/app-my-purchase/div/div[2]/app-my-purchase-direct/div/div/div/div/div[2]/table/thead/tr/th[2]/input")))
+            select_all_box.click()
+            sleep(0.5)
+        except:
+            log.debug(f"Unable to select all for {script} for {NAME}")
+            continue
 
         proceed_button = WebDriverWait(browser, 5).until(EC.presence_of_element_located((By.XPATH, "//*[@id='main']/div/app-my-purchase/div/div[2]/app-my-purchase-direct/div/button")))
         proceed_button.click()
@@ -248,8 +253,9 @@ def start(user, headless):
             log.info(f"Exited for user {NAME}")
             return True
             
-        if edis_scripts:
-            calculate_wacc(browser, NAME, edis_scripts)   
+        breakpoint()
+        if len(edis_scripts) > 0:
+            calculate_wacc(browser, NAME, edis_scripts)
             calculate_holding_days(browser, NAME, edis_scripts)
 
         transfer_shares(browser, NAME, edis_scripts)

@@ -50,7 +50,7 @@ def create_browser(headless: bool = True):
                 
 def get_logger(app="app", level=logging.DEBUG):
     logs_dir = os.path.join(get_dir_path(), "logs")
-    os.makedirs(os.path.dirname(logs_dir), exist_ok=True)
+    os.makedirs(logs_dir, exist_ok=True)
     logging.basicConfig(
     level=level,
     datefmt='%Y-%m-%d %H:%M:%S',

@@ -4,12 +4,12 @@ from database.database import get_db
 from database.models import User
 from utils.helpers import get_dir_path, get_fernet_key, get_logger
 from dotenv import load_dotenv
-
+import csv
 load_dotenv()
 
 
 USERS = []
-options = ["1", "2", "3", "4", "5"]
+options = ["1", "2", "3", "4", "5", "6"]
 sub_options = ["1", "2", "3", "4"]
 DIR_PATH = get_dir_path()
 
@@ -60,6 +60,7 @@ def display_user_data():
     print("-" * 50)
 
 
+
 def menu():
     while True:
         clear_screen()
@@ -70,6 +71,7 @@ def menu():
         print("3. Delete user")
         print("4. Display")
         print("5. Exit")
+        print("6. Import users from CSV")   # <-- new option
         print()
         option = input("Choose one option: ")
         if option in options:
@@ -245,7 +247,49 @@ def update_data_base():
             user_obj.pin = user.get('pin')
             user_obj.account = user.get('account')
             db.commit()
+def import_from_csv():
+    file_path = input("Enter CSV file path: ").strip()
+    if not os.path.exists(file_path):
+        print("File not found!")
+        input()
+        return False
 
+    try:
+        with open(file_path, newline='', encoding="utf-8") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                try:
+                    passwd = fernet.encrypt(row["passsword"].strip().encode()).decode()
+                    pin = fernet.encrypt(str(row["pin"]).encode()).decode()
+
+                    user_dict = {
+                        "name": row["name"].upper().strip(),
+                        "dp": int(row["dp"]),
+                        "boid": int(row["boid"]),
+                        "passsword": passwd,
+                        "crn": row["crn"].strip(),
+                        "pin": pin,
+                        "account": row["account"].strip()
+                    }
+
+                    # Skip duplicates
+                    if not check_user(user_dict["name"]):
+                        USERS.append(user_dict)
+
+                except Exception as e:
+                    print(f"Skipping row due to error: {e}")
+                    continue
+
+        update_data_base()
+        print("CSV import complete!")
+        input()
+        return True
+
+    except Exception as e:
+        print(f"Error reading CSV: {e}")
+        input()
+        return False
+    
 def main():
     users_exists = load_data_base()
 
@@ -286,6 +330,10 @@ def main():
                 print("User updated!")
                 input()
                 update_data_base()
+            continue
+        
+        if option == "6":
+            import_from_csv()
             continue
 
         added = add_user()

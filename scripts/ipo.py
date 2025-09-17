@@ -80,9 +80,10 @@ async def apply_share(page, CRN, PIN, DP, ipo, ACCOUNT_NUMBER):
     quantity_input = page.locator("#appliedKitta")
     if ipo == "IPO" or ipo == "FPO":
         await quantity_input.clear()
+        await quantity_input.click()
         QUANTITY = 10
         await quantity_input.fill(str(QUANTITY))
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(1)
     
     text = await quantity_input.input_value()
 
@@ -263,7 +264,7 @@ async def start(user, lock, headless):
             page = await browser.new_page()
             
             # Set viewport and user agent
-            await page.set_viewport_size({"width": 1920, "height": 1080})
+            await page.set_viewport_size({"width": 1600, "height": 800})
             
             for attempt in range(4):
                 try:
@@ -346,7 +347,7 @@ async def ipo_async(skip_input, headless):
     WAIT_TIME = 3
 
     if not skip_input:
-        user = (input("Enter the user you want to apply: ")).lower().strip()
+        user = (input("Enter the user you want to apply: ")).upper().strip()
 
     fernet = get_fernet_key()
     if not fernet:

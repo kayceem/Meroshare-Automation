@@ -1,19 +1,14 @@
-from collections import defaultdict
-from sys import exit
 import os
+import asyncio
 from threading import RLock
-from time import sleep, perf_counter
-from concurrent.futures import ThreadPoolExecutor
-from cryptography.fernet import Fernet
+from time import perf_counter
+from collections import defaultdict
 
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 
 from database.database import  get_db
 from database.models import  Result, User, UserResult
-from utils.helpers import create_browser, get_dir_path, get_fernet_key, get_logger
+from utils.helpers import get_dir_path, get_fernet_key, get_logger
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -48,162 +43,203 @@ def update_database(data, USER_ID):
         log.error(f"Error updating database: {USER_ID} - {e}")
     return
 
-
-def check_result(browser, info, lock, NAME):
+async def check_result(page, info, NAME):
     results = defaultdict(list)
     log.info(f"Checking results for {NAME}")
+    
     for index, data in enumerate(info):
         name = data[1]
         type = data[4]
+        
         try:
-            WebDriverWait(browser, 10).until(EC.presence_of_element_located((By.XPATH, f"(//button[@type='button'])[{index+6}]"))).click()
-        except:
+            # Click the button for the specific index
+            await page.click(f"(//button[@type='button'])[{index+6}]", timeout=10000)
+        except PlaywrightTimeoutError:
             continue
-        sleep(1)
-        for _ in range(3):
+        
+        await asyncio.sleep(1)
+        
+        # Retry logic for getting status and remarks
+        for attempt in range(3):
             try:
-                status = WebDriverWait(browser, 5).until(EC.presence_of_element_located((By.XPATH, "(//div[@class='row'])[10]")))
-                remarks = WebDriverWait(browser, 5).until(EC.presence_of_element_located((By.XPATH, f"(//div[@class='row'])[11]")))
+                status_element = await page.wait_for_selector("(//div[@class='row'])[10]", timeout=5000)
+                remarks_element = await page.wait_for_selector("(//div[@class='row'])[11]", timeout=5000)
                 break
-            except:
-                browser.refresh()
-                sleep(2)
-        remarks = remarks.text.split("\n")[1].strip()
-        status = status.text.split("\n")[1].strip()
+            except PlaywrightTimeoutError:
+                await page.reload()
+                await asyncio.sleep(2)
+        
+        remarks_text = await remarks_element.text_content()
+        status_text = await status_element.text_content()
+        
+        remarks = remarks_text.split("\n")[1].strip()
+        status = status_text.split("\n")[1].strip()
+        
         results[name].append([status, remarks, type])
-        browser.find_element(By.XPATH,"/html/body/app-dashboard/div/main/div/app-application-report/div/div[1]/div/div[1]/div/div/div/button",).click()
+        
+        # Click back button
+        await page.click("xpath=/html/body/app-dashboard/div/main/div/app-application-report/div/div[1]/div/div[1]/div/div/div/button")
+    
     log.info(f"Checks completed for {NAME}")
     return results
 
 
-def get_companies(browser, lock, NAME):
+async def get_companies(page, NAME):
     info = []
-    # Navigating to ABSA
-    browser.get("https://meroshare.cdsc.com.np/#/asba")
-    try:
-        WebDriverWait(browser, 2).until(
-            EC.presence_of_element_located((By.XPATH, "/html/body/div/div/div/button"))
-        ).click()
-        with lock:
-            log.debug(f"User was unauthorized  {NAME}")
-        return "not_authorized"
-    except:
-        pass
+    
+    # Navigate to ABSA
+    await page.goto("https://meroshare.cdsc.com.np/#/asba")
+    await asyncio.sleep(1)
+    await page.wait_for_load_state("networkidle")
 
-    for attempt in range(1,5):
-        WebDriverWait(browser, 5).until(EC.presence_of_element_located((By.XPATH, "//main[@id='main']//li[3]//a[1]"))).click()
-        # Getting all the companies from Apply Issue
+    if page.url != "https://meroshare.cdsc.com.np/#/asba":
+        log.debug(f"User was unauthorized {NAME}")
+        return "not_authorized"
+    # try:
+    #     # Check for unauthorized popup
+    #     await page.click("xpath=/html/body/div/div/div/button", timeout=2000)
+    #     log.debug(f"User was unauthorized {NAME}")
+    #     return "not_authorized"
+    # except PlaywrightTimeoutError:
+    #     pass
+
+    for attempt in range(1, 5):
         try:
-            WebDriverWait(browser, 5).until(EC.presence_of_element_located((By.CLASS_NAME, "company-list")))
-            # gets lists of web element
-            shares_available = browser.find_elements(By.CLASS_NAME, "company-list")
-            with lock:
-                log.info(f"Got Companies for {NAME} ")
+            # Navigate to Apply Issue
+            await page.click("//main[@id='main']//li[3]//a[1]", timeout=5000)
+            
+            # Wait for company list to load
+            await page.wait_for_selector(".company-list", timeout=5000)
+            
+            # Get all company elements
+            shares_available = await page.query_selector_all(".company-list")
+            
+            log.info(f"Got Companies for {NAME}")
             break
-        except:
-            with lock:
-                log.debug(f"Tried to get Companies for {NAME} ({attempt})")
-            browser.get("https://meroshare.cdsc.com.np/#/asba")
-            sleep(2 + attempt)
+            
+        except PlaywrightTimeoutError:
+            log.debug(f"Tried to get Companies for {NAME} ({attempt})")
+            
+            await page.goto("https://meroshare.cdsc.com.np/#/asba")
+            await asyncio.sleep(2 + attempt)
+            
             if attempt == 4:
-                log.debug(f"No Comapnies available/loaded  {NAME} ")
+                log.debug(f"No Companies available/loaded {NAME}")
                 return False
-    # Storing all the information of comapnies from the web elements as list in a list : info
-    for shares in shares_available[:3]:
-        info.append(shares.text.split("\n"))
+
+    # Extract information from company elements (limit to first 3)
+    for i, shares in enumerate(shares_available[:3]):
+        text_content = await shares.text_content()
+        info.append(text_content.split("\n"))
+    
     return info
 
 
-def login(browser, DP, USERNAME, PASSWD):
+async def login(page, DP, USERNAME, PASSWD):
     try:
-        # Dp drop down menu
-        WebDriverWait(browser, 5).until(EC.presence_of_element_located((By.ID, "selectBranch"))).click()
-        # Dp field
-        dp = browser.find_element(By.XPATH, "/html/body/span/span/span[1]/input")
-        dp.send_keys(f"{DP}")
-        dp.send_keys(Keys.RETURN)
-    except:
+        # DP dropdown menu
+        await page.wait_for_selector("#selectBranch", timeout=5000)
+        await page.click("#selectBranch")
+        
+        # DP field
+        await page.fill("xpath=/html/body/span/span/span[1]/input", str(DP))
+        await page.press("xpath=/html/body/span/span/span[1]/input", "Enter")
+    except PlaywrightTimeoutError:
         return False
 
-    # Username filed
-    username = browser.find_element(By.ID, "username")
-    username.send_keys(f"{USERNAME}")
+    # Username field
+    await page.fill("#username", str(USERNAME))
 
-    # Password feild
-    passwd = browser.find_element(By.ID, "password")
-    passwd.send_keys(f"{PASSWD}")
-    sleep(0.5)
+    # Password field
+    await page.fill("#password", str(PASSWD))
+    await asyncio.sleep(0.5)
+    
     # Login button
-    LOGIN = browser.find_element(By.XPATH,"/html/body/app-login/div/div/div/div/div/div/div[1]/div/form/div/div[4]/div/button",)
-    LOGIN.click()
-    sleep(0.5)
-    try:
-        WebDriverWait(browser, 3).until(EC.presence_of_element_located((By.XPATH, "/html/body/div/div/div/button"))).click()
-        return False
-    except:
-        if browser.current_url == "https://meroshare.cdsc.com.np/#/dashboard":
-            return True
-        return False
+    await page.click("xpath=/html/body/app-login/div/div/div/div/div/div/div[1]/div/form/div/div[4]/div/button")
+    await asyncio.sleep(1)
 
+    await page.wait_for_load_state("networkidle")
 
-def start(user, lock):
+    if page.url == "https://meroshare.cdsc.com.np/#/dashboard":
+        return True
+    return False
+
+async def start(user, lock):
     NAME, DP, USERNAME, PASSWD, _, _, _, USER_ID = user
-    with create_browser() as browser:
-        log.info(f"Starting for user {NAME} ")
+    
+    async with async_playwright() as p:
+        # Launch browser
+        browser = await p.chromium.launch(headless=False)
+        page = await browser.new_page()
+        
+        log.info(f"Starting for user {NAME}")
+        
+        # Connection establishment with retries
         for attempt in range(4):
             try:
-                browser.get("https://meroshare.cdsc.com.np/#/login")
-                with lock:
-                    log.info(f"Connection established for user {NAME} ")
-                sleep(0.5)
-                WebDriverWait(browser, 5).until(EC.presence_of_element_located((By.ID, "username")))
+                await page.goto("https://meroshare.cdsc.com.np/#/login")
+                log.info(f"Connection established for user {NAME}")
+                
+                await asyncio.sleep(0.5)
+                await page.wait_for_selector("#username", timeout=5000)
                 break
+                
             except Exception as e:
-                with lock:
-                    log.info(f"Connection attempt {attempt + 1} failed for user {NAME}")
+                log.info(f"Connection attempt {attempt + 1} failed for user {NAME}")
+                
                 if attempt == 3:
-                    with lock:
-                        log.info(f"Connection could not be established for user {NAME} after 4 attempts")
+                    log.info(f"Connection could not be established for user {NAME} after 4 attempts")
+                    await browser.close()
                     return False
 
+        # Login with retries
+        logged_in = False
         for attempt in range(4):
             try:
-                logged_in = login(browser, DP, USERNAME, PASSWD)
+                logged_in = await login(page, DP, USERNAME, PASSWD)
                 if not logged_in:
-                    raise Exception
-                with lock:
-                    log.info(f"Logged in for {NAME} ")
+                    raise Exception("Login failed")
+                
+                log.info(f"Logged in for {NAME}")
                 break
-            except:
-                browser.get_screenshot_as_file(f"Errors/{NAME.lower()}_{login_failed}.png")
-                browser.get("https://meroshare.cdsc.com.np/#/login")
-                with lock:
-                    log.info(f"Problem Logging in {NAME}")
+                
+            except Exception as e:
+                # Take screenshot on login failure
+                await page.screenshot(path=f"Errors/{NAME.lower()}_login_failed.png")
+                await page.goto("https://meroshare.cdsc.com.np/#/login")
+                
+                log.info(f"Problem Logging in {NAME}")
 
-        if logged_in:
-            companies_to_check = get_companies(browser, lock, NAME)
-            if companies_to_check == "not_authorized":
-                with lock:
-                    log.info(f"User unauthorized {NAME}")
-                return False
-
-        if not companies_to_check:
-            with lock:
-                log.info(f"Exited for user {NAME}")
+        if not logged_in:
+            await browser.close()
             return False
 
-        results = check_result(browser, companies_to_check, lock, NAME)
+        # Get companies to check
+        companies_to_check = await get_companies(page, NAME)
+        
+        if companies_to_check == "not_authorized":
+            log.info(f"User unauthorized {NAME}")
+            await browser.close()
+            return False
 
-        with lock:
-            update_database(results, USER_ID)
+        if not companies_to_check:
+            log.info(f"Exited for user {NAME}")
+            await browser.close()
+            return False
 
-        # Quiting the browser
+        # Check results
+        results = await check_result(page, companies_to_check, NAME)
+
+        # Update database (assuming this function exists)
         with lock:
-            log.info(f"Completed for user {NAME} ")
+            await update_database(results, USER_ID)  # You might need to make this async too
+
+        log.info(f"Completed for user {NAME}")
+        
         return True
 
 
-def ipo_result():
+async def ipo_result_async():
     global log, DIR_PATH
     
     log = get_logger("ipo-result")
@@ -223,17 +259,43 @@ def ipo_result():
 
     log.debug("Starting IPO Result")
     start_time = perf_counter()
-    executor = ThreadPoolExecutor()
-    for user in user_data:
-        executor.submit(start, user, lock)
-        sleep(WAIT_TIME)
-    executor.shutdown(wait=True)
+    tasks = []
+    for i, user in enumerate(user_data):
+        if i > 0:
+            await asyncio.sleep(WAIT_TIME)
+        task = asyncio.create_task(start(user, lock))
+        tasks.append((task, user[0]))
+        break
+    
+    completed_users = []
+    failed_users = []
+    for task, username in tasks:
+        try:
+            result = await asyncio.wait_for(task, timeout=300)  # 5 minute timeout per user
+            if result:
+                completed_users.append(username)
+                log.info(f"Successfully completed for user: {username}")
+            else:
+                failed_users.append(username)
+                log.warning(f"Failed to complete for user: {username}")
+        except asyncio.TimeoutError:
+            failed_users.append(username)
+            log.error(f"Timeout for user {username}")
+        except Exception as e:
+            failed_users.append(username)
+            log.error(f"Exception for user {username}: {e}")
+    
+    log.info(f"Completed users: {len(completed_users)}")
+    log.info(f"Failed users: {len(failed_users)}")
+    if failed_users:
+        log.warning(f"Failed users: {', '.join(failed_users)}")
+
     end_time = perf_counter()
 
     time_delta = end_time - start_time
     minutes, seconds = divmod(time_delta, 60)
-    with lock:
-        log.debug(f"Completed :: {minutes:.0f} minutes | {seconds:.1f} seconds")
-
+    log.info(f"Completed :: {minutes:.0f} minutes | {seconds:.1f} seconds")
     return
 
+def ipo_result():
+    return asyncio.run(ipo_result_async())

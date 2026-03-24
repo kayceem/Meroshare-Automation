@@ -252,8 +252,7 @@ def start(user, headless):
         if edis_scripts == "no-edis":
             log.info(f"Exited for user {NAME}")
             return True
-            
-        breakpoint()
+
         if len(edis_scripts) > 0:
             calculate_wacc(browser, NAME, edis_scripts)
             calculate_holding_days(browser, NAME, edis_scripts)
@@ -271,7 +270,11 @@ def edis(user, headless):
     user_data = []
     WAIT_TIME = 3
 
-    user = user.strip().lower()
+    if user is None:
+        log.error("User argument is required. Please specify --user <username>")
+        return
+
+    user = user.strip().upper()
     fernet = get_fernet_key()
     if not fernet:
         log.error("Key not found")

@@ -1,5 +1,3 @@
-#!/home/kayc/Code/Python/MeroShare-IPO/.venv/bin/python
-
 import argparse
 from sys import exit
 import os
@@ -60,7 +58,9 @@ if __name__ == "__main__":
         except SystemExit:
             os._exit(0)
     except Exception as e:
-        # log.error(e)
+        print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
         try:
             exit(1)
         except SystemExit:

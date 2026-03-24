@@ -1,5 +1,3 @@
-#!/home/kayc/Code/Python/MeroShare-IPO/.venv/bin/python
-
 import os
 import asyncio
 from time import perf_counter
@@ -364,6 +362,7 @@ async def ipo_async(skip_input, headless):
         else:
             users = db.query(User).filter(User.name == user).first()
             user_data = [[users.name, users.dp, users.boid, (fernet.decrypt(users.passsword.encode())).decode(), users.crn, (fernet.decrypt(users.pin.encode())).decode(), users.account, users.id]]
+            print(user_data)
 
     start_time = perf_counter()
     

@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}Users - IPO Results{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <h2>Users</h2>
+</div>
+
+<div class="row stat-row">
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="stat-number">{{ users|length }}</div>
+            <div class="stat-label">Users</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="stat-number">{{ users|sum(attribute='applications') }}</div>
+            <div class="stat-label">Applications</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="stat-number" style="color: #198754;">{{ users|sum(attribute='allotted') }}</div>
+            <div class="stat-label">Allotted</div>
+        </div>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-8">
+            <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Search users..." autofocus>
+        </div>
+        <div class="col-md-4">
+            <select id="filterStatus" class="form-select form-select-sm">
+                <option value="all">All Users</option>
+                <option value="allotted">With Allotment</option>
+                <option value="not-allotted">No Allotment</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<div class="table-container">
+    <table class="table table-hover" id="usersTable">
+        <thead>
+            <tr>
+                <th class="sortable" data-sort="name">Name</th>
+                <th>BOID</th>
+                <th class="text-end sortable" data-sort="applications">Apps</th>
+                <th class="text-end sortable" data-sort="allotted">Allotted</th>
+                <th class="sortable" data-sort="rate" style="width: 120px;">Rate</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr class="clickable-row" onclick="window.location.href='/user/{{ user.id }}'"
+                data-allotted="{{ user.allotted }}"
+                data-applications="{{ user.applications }}"
+                data-rate="{{ ((user.allotted / user.applications) * 100)|round|int if user.applications > 0 else 0 }}">
+                <td><strong>{{ user.name }}</strong></td>
+                <td><code>{{ user.boid }}</code></td>
+                <td class="text-end">{{ user.applications }}</td>
+                <td class="text-end">
+                    {% if user.allotted > 0 %}
+                        <span class="badge bg-success">{{ user.allotted }}</span>
+                    {% else %}
+                        <span class="text-muted">0</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if user.applications > 0 %}
+                        {% set rate = ((user.allotted / user.applications) * 100)|round|int %}
+                        <small class="{% if rate > 0 %}text-success{% else %}text-danger{% endif %}">{{ rate }}%</small>
+                    {% else %}
+                        <small class="text-muted">—</small>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentSort = { column: null, direction: 'asc' };
+
+    function filterAndDisplay() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const filterStatus = document.getElementById('filterStatus').value;
+        const rows = document.querySelectorAll('#usersTable tbody tr');
+
+        rows.forEach(row => {
+            const name = row.cells[0].textContent.toLowerCase();
+            const boid = row.cells[1].textContent.toLowerCase();
+            const allotted = parseInt(row.dataset.allotted);
+
+            let showRow = true;
+
+            // Search filter
+            if (searchTerm && !name.includes(searchTerm) && !boid.includes(searchTerm)) {
+                showRow = false;
+            }
+
+            // Status filter
+            if (filterStatus === 'allotted' && allotted === 0) {
+                showRow = false;
+            } else if (filterStatus === 'not-allotted' && allotted > 0) {
+                showRow = false;
+            }
+
+            row.style.display = showRow ? '' : 'none';
+        });
+    }
+
+    function sortTable(column) {
+        const tbody = document.querySelector('#usersTable tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+
+        // Toggle direction if same column, otherwise default to desc
+        if (currentSort.column === column) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = column;
+            currentSort.direction = column === 'name' ? 'asc' : 'desc';
+        }
+
+        rows.sort((a, b) => {
+            let aVal, bVal;
+
+            if (column === 'name') {
+                aVal = a.cells[0].textContent.toLowerCase();
+                bVal = b.cells[0].textContent.toLowerCase();
+                return currentSort.direction === 'asc'
+                    ? aVal.localeCompare(bVal)
+                    : bVal.localeCompare(aVal);
+            } else if (column === 'applications') {
+                aVal = parseInt(a.dataset.applications);
+                bVal = parseInt(b.dataset.applications);
+            } else if (column === 'allotted') {
+                aVal = parseInt(a.dataset.allotted);
+                bVal = parseInt(b.dataset.allotted);
+            } else if (column === 'rate') {
+                aVal = parseInt(a.dataset.rate);
+                bVal = parseInt(b.dataset.rate);
+            }
+
+            return currentSort.direction === 'asc' ? aVal - bVal : bVal - aVal;
+        });
+
+        rows.forEach(row => tbody.appendChild(row));
+
+        // Update header indicators
+        document.querySelectorAll('#usersTable th.sortable').forEach(th => {
+            th.classList.remove('asc', 'desc');
+        });
+        const activeHeader = document.querySelector(`#usersTable th[data-sort="${column}"]`);
+        if (activeHeader) {
+            activeHeader.classList.add(currentSort.direction);
+        }
+    }
+
+    // Search and filter functionality
+    document.getElementById('searchInput').addEventListener('keyup', filterAndDisplay);
+    document.getElementById('filterStatus').addEventListener('change', filterAndDisplay);
+
+    // Add click handlers to sortable headers
+    document.querySelectorAll('#usersTable th.sortable').forEach(th => {
+        th.addEventListener('click', function() {
+            sortTable(this.dataset.sort);
+        });
+    });
+</script>
+{% endblock %}

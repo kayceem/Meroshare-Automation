@@ -23,31 +23,39 @@ class User(Base):
 
 class Result(Base):
     __tablename__ = 'results'
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
-    script = Column(String(255), unique=True, nullable=False)
+    company_share_id = Column(Integer, unique=True, nullable=False)  # companyShareId from API
+    script = Column(String(255), nullable=False)  # scrip from API
+    share_type_name = Column(String(255), nullable=False)  # shareTypeName from API (e.g., "IPO")
+    company_name = Column(String(255), nullable=False)  # companyName from API
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    
+
     user_results = relationship("UserResult", back_populates="result", cascade="all, delete-orphan")
 
 
 class UserResult(Base):
     """
-    This table associates users with results and allows you to store a user-specific
-    value (e.g., a score or status) for each result.
+    This table associates users with results and stores application-specific details.
     """
     __tablename__ = 'user_results'
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     result_id = Column(Integer, ForeignKey('results.id'), nullable=False)
-    type = Column(String(255), nullable=False)
-    value = Column(String(255), nullable=False)
+    applicant_form_id = Column(Integer, unique=True, nullable=False)  # applicantFormId from API
+    applied_date = Column(String(255), nullable=True)  # appliedDate from API
+    amount = Column(String(255), nullable=True)  # amount from application details
+    reason_or_remark = Column(String(500), nullable=True)  # reasonOrRemark from API
+    meroshare_remark = Column(String(500), nullable=True)  # meroshareRemark from API
+    received_kitta = Column(Integer, nullable=True)  # receivedKitta from API
+    type = Column(String(255), nullable=False)  # Legacy field (kept for compatibility)
+    value = Column(String(255), nullable=False)  # Legacy field (kept for compatibility)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user = relationship("User", back_populates="user_results")
     result = relationship("Result", back_populates="user_results")
-    
+
     __table_args__ = (
         UniqueConstraint('user_id', 'result_id','type', name='uq_user_result_type'),
     )

@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}{{ company.company_name }} - IPO Results{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="/companies" class="btn btn-sm btn-outline-secondary mb-2">← Back</a>
+    <h2>{{ company.company_name }}</h2>
+    <p class="text-muted mb-0"><code>{{ company.script }}</code> • {{ company.share_type_name }}</p>
+</div>
+
+<div class="row stat-row">
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="stat-number">{{ users|length }}</div>
+            <div class="stat-label">Applications</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="stat-number" style="color: #198754;">
+                {{ users|selectattr('received_kitta', 'gt', 0)|list|length }}
+            </div>
+            <div class="stat-label">Allotted</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="stat-number">{{ users|sum(attribute='received_kitta') }}</div>
+            <div class="stat-label">Total Shares</div>
+        </div>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-8">
+            <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Search..." autofocus>
+        </div>
+        <div class="col-md-4">
+            <select id="filterStatus" class="form-select form-select-sm">
+                <option value="all">All</option>
+                <option value="allotted">Allotted</option>
+                <option value="not-allotted">Not Allotted</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<div class="table-container">
+    <table class="table table-hover" id="resultsTable">
+        <thead>
+            <tr>
+                <th class="sortable" data-sort="user">User</th>
+                <th>BOID</th>
+                <th class="sortable" data-sort="date">Date</th>
+                <th class="text-end sortable" data-sort="amount">Amount</th>
+                <th class="text-end sortable" data-sort="shares">Shares</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr data-allotted="{{ user.received_kitta }}"
+                data-date="{{ user.applied_date or '' }}"
+                data-amount="{{ user.amount or '0' }}">
+                <td><strong>{{ user.user_name }}</strong></td>
+                <td><code>{{ user.boid }}</code></td>
+                <td>
+                    {% if user.applied_date %}
+                        <small>{{ user.applied_date[:10] }}</small>
+                    {% else %}
+                        <small class="text-muted">—</small>
+                    {% endif %}
+                </td>
+                <td class="text-end">
+                    {% if user.amount %}
+                        <small>{{ user.amount }}</small>
+                    {% else %}
+                        <small class="text-muted">—</small>
+                    {% endif %}
+                </td>
+                <td class="text-end">
+                    {% if user.received_kitta > 0 %}
+                        <span class="badge bg-success">{{ user.received_kitta }}</span>
+                    {% else %}
+                        <span class="text-muted">0</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <small class="{% if user.received_kitta > 0 %}text-success{% else %}text-danger{% endif %}">
+                        {{ user.meroshare_remark or user.reason_or_remark or '—' }}
+                    </small>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if not users %}
+    <div class="text-center py-5">
+        <p class="text-muted">No applications found</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentSort = { column: null, direction: 'asc' };
+
+    function filterAndDisplay() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const filterStatus = document.getElementById('filterStatus').value;
+        const rows = document.querySelectorAll('#resultsTable tbody tr');
+
+        rows.forEach(row => {
+            const user = row.cells[0].textContent.toLowerCase();
+            const boid = row.cells[1].textContent.toLowerCase();
+            const allotted = parseInt(row.dataset.allotted);
+
+            let showRow = true;
+
+            // Search filter
+            if (searchTerm && !user.includes(searchTerm) && !boid.includes(searchTerm)) {
+                showRow = false;
+            }
+
+            // Status filter
+            if (filterStatus === 'allotted' && allotted === 0) {
+                showRow = false;
+            } else if (filterStatus === 'not-allotted' && allotted > 0) {
+                showRow = false;
+            }
+
+            row.style.display = showRow ? '' : 'none';
+        });
+    }
+
+    function sortTable(column) {
+        const tbody = document.querySelector('#resultsTable tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+
+        // Toggle direction if same column
+        if (currentSort.column === column) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = column;
+            currentSort.direction = column === 'user' ? 'asc' : 'desc';
+        }
+
+        rows.sort((a, b) => {
+            let aVal, bVal;
+
+            if (column === 'user') {
+                aVal = a.cells[0].textContent.toLowerCase();
+                bVal = b.cells[0].textContent.toLowerCase();
+                return currentSort.direction === 'asc'
+                    ? aVal.localeCompare(bVal)
+                    : bVal.localeCompare(aVal);
+            } else if (column === 'date') {
+                aVal = a.dataset.date;
+                bVal = b.dataset.date;
+                return currentSort.direction === 'asc'
+                    ? aVal.localeCompare(bVal)
+                    : bVal.localeCompare(aVal);
+            } else if (column === 'amount') {
+                aVal = parseFloat(a.dataset.amount);
+                bVal = parseFloat(b.dataset.amount);
+            } else if (column === 'shares') {
+                aVal = parseInt(a.dataset.allotted);
+                bVal = parseInt(b.dataset.allotted);
+            }
+
+            return currentSort.direction === 'asc' ? aVal - bVal : bVal - aVal;
+        });
+
+        rows.forEach(row => tbody.appendChild(row));
+
+        // Update header indicators
+        document.querySelectorAll('#resultsTable th.sortable').forEach(th => {
+            th.classList.remove('asc', 'desc');
+        });
+        const activeHeader = document.querySelector(`#resultsTable th[data-sort="${column}"]`);
+        if (activeHeader) {
+            activeHeader.classList.add(currentSort.direction);
+        }
+    }
+
+    // Search and filter functionality
+    document.getElementById('searchInput').addEventListener('keyup', filterAndDisplay);
+    document.getElementById('filterStatus').addEventListener('change', filterAndDisplay);
+
+    // Add click handlers to sortable headers
+    document.querySelectorAll('#resultsTable th.sortable').forEach(th => {
+        th.addEventListener('click', function() {
+            sortTable(this.dataset.sort);
+        });
+    });
+</script>
+{% endblock %}

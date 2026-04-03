@@ -4,11 +4,6 @@ import os
 from scripts.ipo import ipo
 from scripts.ipo_result import ipo_result
 from scripts.edis import edis
-import logging
-
-from utils.helpers import get_logger
-
-# log = get_logger("main", logging.INFO)
 
 if __name__ == "__main__":
     try:
@@ -41,14 +36,40 @@ if __name__ == "__main__":
         )
 
         ipo_results_parser = subparsers.add_parser("ipo-results")
+        ipo_results_parser.add_argument(
+            "--noheadless",
+            action="store_false",
+            dest="headless",
+            help="Run with visible browser (default: headless)",
+        )
+        ipo_results_parser.add_argument(
+            "--delay",
+            type=int,
+            default=5,
+            help="Delay in seconds between starting each user (default: 5)",
+        )
+
+        generator_parser = subparsers.add_parser("generator")
+
+        migrate_parser = subparsers.add_parser("migrate")
+
+        view_results_parser = subparsers.add_parser("view-results")
+
         args = parser.parse_args()
 
         if args.command == "ipo":
             ipo(args.noskip, args.noheadless)
         elif args.command == "ipo-results":
-            ipo_result()
+            ipo_result(user_delay=args.delay)
         elif args.command == "edis":
             edis(args.user, args.noheadless)
+        elif args.command == "generator":
+            from scripts import generator
+            generator.main()
+        elif args.command == "view-results":
+            from scripts.webapp.app import app
+            app.run(host='0.0.0.0')
+
         else:
             parser.print_help()
     except KeyboardInterrupt:

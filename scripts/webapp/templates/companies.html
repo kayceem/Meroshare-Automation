@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Companies - IPO Results{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <h2>Companies</h2>
+</div>
+
+<div class="row stat-row">
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="stat-number">{{ companies|length }}</div>
+            <div class="stat-label">Companies</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="stat-number">{{ companies|sum(attribute='total_applications') }}</div>
+            <div class="stat-label">Applications</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <div class="stat-number" style="color: #198754;">{{ companies|sum(attribute='allotted') }}</div>
+            <div class="stat-label">Allotted</div>
+        </div>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Search companies..." autofocus>
+</div>
+
+<div class="table-container">
+    <table class="table table-hover" id="companiesTable">
+        <thead>
+            <tr>
+                <th class="sortable" data-sort="name">Company</th>
+                <th>Script</th>
+                <th class="text-end sortable" data-sort="applications">Apps</th>
+                <th class="text-end sortable" data-sort="allotted">Allotted</th>
+                <th class="sortable" data-sort="rate" style="width: 100px;">Rate</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for company in companies %}
+            <tr class="clickable-row" onclick="window.location.href='/company/{{ company.id }}'"
+                data-applications="{{ company.total_applications }}"
+                data-allotted="{{ company.allotted }}"
+                data-rate="{{ ((company.allotted / company.total_applications) * 100)|round|int if company.total_applications > 0 else 0 }}">
+                <td><strong>{{ company.company_name }}</strong></td>
+                <td><code>{{ company.script }}</code></td>
+                <td class="text-end">{{ company.total_applications }}</td>
+                <td class="text-end">
+                    {% if company.allotted > 0 %}
+                        <span class="badge bg-success">{{ company.allotted }}</span>
+                    {% else %}
+                        <span class="text-muted">0</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if company.total_applications > 0 %}
+                        {% set rate = ((company.allotted / company.total_applications) * 100)|round|int %}
+                        <small class="{% if rate > 0 %}text-success{% else %}text-danger{% endif %}">{{ rate }}%</small>
+                    {% else %}
+                        <small class="text-muted">—</small>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if not companies %}
+    <div class="text-center py-5">
+        <p class="text-muted">No companies found</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentSort = { column: null, direction: 'asc' };
+
+    // Search functionality
+    document.getElementById('searchInput').addEventListener('keyup', function() {
+        const searchTerm = this.value.toLowerCase();
+        const rows = document.querySelectorAll('#companiesTable tbody tr');
+
+        rows.forEach(row => {
+            const name = row.cells[0].textContent.toLowerCase();
+            const script = row.cells[1].textContent.toLowerCase();
+
+            if (name.includes(searchTerm) || script.includes(searchTerm)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+
+    function sortTable(column) {
+        const tbody = document.querySelector('#companiesTable tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+
+        // Toggle direction if same column
+        if (currentSort.column === column) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = column;
+            currentSort.direction = column === 'name' ? 'asc' : 'desc';
+        }
+
+        rows.sort((a, b) => {
+            let aVal, bVal;
+
+            if (column === 'name') {
+                aVal = a.cells[0].textContent.toLowerCase();
+                bVal = b.cells[0].textContent.toLowerCase();
+                return currentSort.direction === 'asc'
+                    ? aVal.localeCompare(bVal)
+                    : bVal.localeCompare(aVal);
+            } else if (column === 'applications') {
+                aVal = parseInt(a.dataset.applications);
+                bVal = parseInt(b.dataset.applications);
+            } else if (column === 'allotted') {
+                aVal = parseInt(a.dataset.allotted);
+                bVal = parseInt(b.dataset.allotted);
+            } else if (column === 'rate') {
+                aVal = parseInt(a.dataset.rate);
+                bVal = parseInt(b.dataset.rate);
+            }
+
+            return currentSort.direction === 'asc' ? aVal - bVal : bVal - aVal;
+        });
+
+        rows.forEach(row => tbody.appendChild(row));
+
+        // Update header indicators
+        document.querySelectorAll('#companiesTable th.sortable').forEach(th => {
+            th.classList.remove('asc', 'desc');
+        });
+        const activeHeader = document.querySelector(`#companiesTable th[data-sort="${column}"]`);
+        if (activeHeader) {
+            activeHeader.classList.add(currentSort.direction);
+        }
+    }
+
+    // Add click handlers to sortable headers
+    document.querySelectorAll('#companiesTable th.sortable').forEach(th => {
+        th.addEventListener('click', function() {
+            sortTable(this.dataset.sort);
+        });
+    });
+</script>
+{% endblock %}

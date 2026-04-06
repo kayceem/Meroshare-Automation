@@ -76,7 +76,7 @@ class Application(Base):
     
     user = relationship("User", back_populates="applications")
 
-    __table_args__ = (UniqueConstraint('name', 'ipo', name='uq_name_ipo'),)
+    __table_args__ = (UniqueConstraint('name', 'ipo_name', name='uq_name_ipo_name'),)
 
     
 # with open(f"{DIR_PATH}/Source Files/dataBase.txt", "r", encoding="utf-8") as fp:

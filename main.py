@@ -3,7 +3,7 @@ from sys import exit
 import os
 from scripts.ipo import ipo
 from scripts.ipo_result import ipo_result
-from scripts.edis import edis
+from scripts.edis import edis, edis_all
 
 if __name__ == "__main__":
     try:
@@ -35,6 +35,12 @@ if __name__ == "__main__":
             default=None,
         )
 
+        edis_parser.add_argument(
+            "--all",
+            action="store_true",
+            help="Run for all users",
+        )
+
         ipo_results_parser = subparsers.add_parser("ipo-results")
         ipo_results_parser.add_argument(
             "--noheadless",
@@ -62,7 +68,10 @@ if __name__ == "__main__":
         elif args.command == "ipo-results":
             ipo_result(user_delay=args.delay)
         elif args.command == "edis":
-            edis(args.user, args.noheadless)
+            if args.all:
+                edis_all(args.noheadless)
+            else:
+                edis(args.user, args.noheadless)
         elif args.command == "generator":
             from scripts import generator
             generator.main()

@@ -320,3 +320,12 @@ async def edis_async(user, headless):
 
 def edis(user, headless):
     return asyncio.run(edis_async(user, headless))
+
+def edis_all(headless):
+    with get_db() as db:
+        users = db.query(User).all()
+        user_data = []
+        for user in users:
+            user_data.append(user.name)
+    for user in user_data:
+        asyncio.run(edis_async(user, headless))

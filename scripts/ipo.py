@@ -7,8 +7,8 @@ from cryptography.fernet import Fernet
 
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 
-from database.database import get_db
-from database.models import Application, User
+from database.accessors import get_accessor
+from database.schemas import ApplicationCreate
 from utils.helpers import get_bank_id, get_dir_path, get_fernet_key, get_logger, get_time
 from dotenv import load_dotenv
 
@@ -30,28 +30,19 @@ def update_database(username, user_id, applied_shares):
         if len(applied_shares) == 0:
             return
         
-        with get_db() as db:
+        with get_accessor() as db:
             for shares in applied_shares:
                 ipo_name, _, _, ipo, share_type, button = shares
-                existing_entry = db.query(Application).filter(
-                    Application.name == username, 
-                    Application.ipo_name == ipo_name
-                ).first()
-                
-                if existing_entry:
-                    existing_entry.button = button
-                    existing_entry.share_type = share_type
-                else:
-                    db.add(Application(
-                        user_id=user_id, 
-                        name=username, 
-                        ipo_name=ipo_name, 
-                        ipo=ipo, 
-                        share_type=share_type, 
-                        button=button
-                    ))
-            
-            db.commit()
+                db.applications.upsert(
+                    ApplicationCreate(
+                        user_id=user_id,
+                        name=username,
+                        ipo_name=ipo_name,
+                        ipo=ipo,
+                        share_type=share_type,
+                        button=button,
+                    )
+                )
             log.info(f"Database updated for {username}")
     except Exception as e:
         log.error(f"Error updating database for {username}: {e}")
@@ -352,15 +343,18 @@ async def ipo_async(skip_input, headless):
         log.error("Key not found")
         return
 
-    with get_db() as db:
+    with get_accessor() as db:
         if skip_input:
-            users = db.query(User).all()
+            users = db.users.list_all()
             if not users:
                 log.debug("No users available")
                 return
             user_data = [[user.name, user.dp, user.boid, (fernet.decrypt(user.passsword.encode())).decode(), user.crn, (fernet.decrypt(user.pin.encode())).decode(), user.account, user.id] for user in users]
         else:
-            users = db.query(User).filter(User.name == user).first()
+            users = db.users.get_by_name(user)
+            if not users:
+                log.error(f"User not found: {user}")
+                return
             user_data = [[users.name, users.dp, users.boid, (fernet.decrypt(users.passsword.encode())).decode(), users.crn, (fernet.decrypt(users.pin.encode())).decode(), users.account, users.id]]
             print(user_data)
 

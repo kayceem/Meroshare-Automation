@@ -5,8 +5,7 @@ from threading import RLock
 
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 
-from database.database import  get_db
-from database.models import  Result, User
+from database.accessors import get_accessor
 from utils.helpers import get_dir_path, get_logger, get_fernet_key, get_time
 from dotenv import load_dotenv
 
@@ -22,7 +21,7 @@ async def save_screenshot(page, NAME):
     await page.screenshot(path=filename)
     return
 
-async def transfer_shares(page, NAME, scripts):
+async def transfer_shares(page, NAME):
     edis_url = "https://meroshare.cdsc.com.np/#/edis"
     await page.goto(edis_url)
     for attempt in range(1,2):
@@ -132,9 +131,13 @@ async def check_for_edis(page, NAME):
     except PlaywrightTimeoutError:
         pass
 
-    for attempt in range(1,5):
+    for attempt in range(1,4):
             await page.click("//*[@id='main']/div/app-my-edis/div/div[1]/div/div/ul/li[2]/a", timeout=5000)
             try:
+                if attempt % 2 != 0:
+                    await page.wait_for_selector("//*[@id='main']/div/app-my-edis/div/div[2]/app-transfer-shares/div/div/div/div/table/tbody/tr/td[4]/button", timeout=5000)
+                    log.info(f"EDIS available for {NAME} ")
+                    return "edis-available"
                 fallback_message = await page.wait_for_selector(".fallback-title-message", timeout=5000)
                 fallback_message_text = await fallback_message.text_content()
                 if "No EDIS" in fallback_message_text.upper():
@@ -147,10 +150,10 @@ async def check_for_edis(page, NAME):
             except PlaywrightTimeoutError:
                 log.debug(f"Checking edis for {NAME} ({attempt})")
                 await page.goto(edis_url)
-                await asyncio.sleep(2 + attempt)
+                await asyncio.sleep(2)
                 if attempt == 4:
                     log.debug(f"No EDIS available for {NAME} ")
-                return False
+                    return False
     return scripts
 
 async def login(page, DP, USERNAME, PASSWD):
@@ -235,7 +238,7 @@ async def start(user, headless):
             return False
 
         edis_scripts = await check_for_edis(page, NAME)
-        if edis_scripts == "not_authorized":
+        if edis_scripts == "not_authorized" or not edis_scripts:
             log.info(f"User unauthorized {NAME}")
             await browser.close()
             return False
@@ -245,11 +248,11 @@ async def start(user, headless):
             await browser.close()
             return True
 
-        if len(edis_scripts) > 0:
+        if edis_scripts != "edis-available" and len(edis_scripts) > 0:
             await calculate_wacc(page, NAME, edis_scripts)
             await calculate_holding_days(page, NAME, edis_scripts)
 
-        await transfer_shares(page, NAME, edis_scripts)
+        await transfer_shares(page, NAME)
 
         await browser.close()
         log.info(f"Completed for user {NAME} ")
@@ -273,8 +276,11 @@ async def edis_async(user, headless):
         log.error("Key not found")
         return
 
-    with get_db() as db:
-        users = db.query(User).filter(User.name == user).first()
+    with get_accessor() as db:
+        users = db.users.get_by_name(user)
+        if not users:
+            log.error(f"User not found: {user}")
+            return
         user_data = [[users.name, users.dp, users.boid, (fernet.decrypt(users.passsword.encode())).decode(), users.crn, (fernet.decrypt(users.pin.encode())).decode(), users.account, users.id]]
 
     start_time = perf_counter()
@@ -322,10 +328,8 @@ def edis(user, headless):
     return asyncio.run(edis_async(user, headless))
 
 def edis_all(headless):
-    with get_db() as db:
-        users = db.query(User).all()
-        user_data = []
-        for user in users:
-            user_data.append(user.name)
+    with get_accessor() as db:
+        users = db.users.list_all()
+        user_data = [user.name for user in users]
     for user in user_data:
         asyncio.run(edis_async(user, headless))

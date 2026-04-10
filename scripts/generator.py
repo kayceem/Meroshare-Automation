@@ -1,7 +1,7 @@
 import os
 import stdiomask
-from database.database import get_db
-from database.models import User
+from database.accessors import get_accessor
+from database.schemas import UserUpsert
 from utils.helpers import get_dir_path, get_fernet_key, get_logger
 from dotenv import load_dotenv
 import csv
@@ -28,8 +28,9 @@ def clear_screen():
 
 def load_data_base():
     try:
-        with get_db() as db:
-            users = db.query(User).all()
+        USERS.clear()
+        with get_accessor() as db:
+            users = db.users.list_all()
             if not users:
                 return False
             for user in users:
@@ -224,29 +225,16 @@ def delete_user():
     name = input("Enter name of user: ").upper()
     for user in USERS:
         if name == user.get('name').upper():
-            with get_db() as db:
-                db.query(User).filter(User.name == user.get('name')).delete()
-                db.commit()
+            with get_accessor() as db:
+                db.users.delete_by_name(user.get('name'))
             return True
     return False
 
 
 def update_data_base():
-    with get_db() as db:
+    with get_accessor() as db:
         for user in USERS:
-            user_obj = db.query(User).filter(User.name == user.get('name')).first()
-            if not user_obj:
-                user_obj = User(**user)
-                db.add(user_obj)
-                db.commit()
-                continue
-            user_obj.dp = user.get('dp')
-            user_obj.name = user.get('name')
-            user_obj.passsword = user.get('passsword')
-            user_obj.crn = user.get('crn')
-            user_obj.pin = user.get('pin')
-            user_obj.account = user.get('account')
-            db.commit()
+            db.users.upsert(UserUpsert(**user))
 def import_from_csv():
     file_path = input("Enter CSV file path: ").strip()
     if not os.path.exists(file_path):

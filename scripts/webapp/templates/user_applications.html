@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}{{ user.name }} Applications - IPO Dashboard{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="/applications" class="btn btn-sm btn-outline-secondary mb-2">← Back</a>
+    <h2>{{ user.name }}</h2>
+    <p class="text-muted mb-0"><code>{{ user.boid }}</code></p>
+</div>
+
+<div class="row stat-row">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="stat-number">{{ applications|length }}</div>
+            <div class="stat-label">Saved Entries</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="stat-number">{{ applications|selectattr('button', 'equalto', 'Apply')|list|length }}</div>
+            <div class="stat-label">Ready To Apply</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="stat-number">{{ applications|selectattr('button', 'equalto', 'Reapply')|list|length }}</div>
+            <div class="stat-label">Reapply</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="stat-number" style="color: #198754;">{{ applications|selectattr('button', 'equalto', 'Edit')|list|length }}</div>
+            <div class="stat-label">Applied</div>
+        </div>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <div class="row g-2 align-items-center">
+        <div class="col-md-8">
+            <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Search company or share type..." autofocus>
+        </div>
+        <div class="col-md-4">
+            <select id="filterButton" class="form-select form-select-sm">
+                <option value="all">All Statuses</option>
+                <option value="Apply">Apply</option>
+                <option value="Reapply">Reapply</option>
+                <option value="Edit">Edit</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<div class="table-container">
+    <table class="table table-hover" id="applicationsTable">
+        <thead>
+            <tr>
+                <th class="sortable" data-sort="ipo_name">Company</th>
+                <th class="sortable" data-sort="ipo">IPO Type</th>
+                <th class="sortable" data-sort="share_type">Share Type</th>
+                <th class="sortable" data-sort="button">Status</th>
+                <th class="sortable" data-sort="created_at">Saved</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for application in applications %}
+            <tr data-button="{{ application.button }}"
+                data-created-at="{{ application.created_at.isoformat() }}">
+                <td><strong>{{ application.ipo_name }}</strong></td>
+                <td><small>{{ application.ipo }}</small></td>
+                <td><small>{{ application.share_type }}</small></td>
+                <td>
+                    {% if application.button == 'Edit' %}
+                        <span class="badge bg-success">{{ application.button }}</span>
+                    {% elif application.button == 'Reapply' %}
+                        <span class="badge bg-danger">{{ application.button }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ application.button }}</span>
+                    {% endif %}
+                </td>
+                <td><small>{{ application.created_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if not applications %}
+    <div class="text-center py-5">
+        <p class="text-muted">No IPO applications found for this user</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentSort = { column: null, direction: 'desc' };
+
+    function filterAndDisplay() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const filterButton = document.getElementById('filterButton').value;
+        const rows = document.querySelectorAll('#applicationsTable tbody tr');
+
+        rows.forEach(row => {
+            const company = row.cells[0].textContent.toLowerCase();
+            const shareType = row.cells[2].textContent.toLowerCase();
+            const button = row.dataset.button;
+
+            let showRow = true;
+
+            if (searchTerm && !company.includes(searchTerm) && !shareType.includes(searchTerm)) {
+                showRow = false;
+            }
+
+            if (filterButton !== 'all' && button !== filterButton) {
+                showRow = false;
+            }
+
+            row.style.display = showRow ? '' : 'none';
+        });
+    }
+
+    function sortTable(column) {
+        const tbody = document.querySelector('#applicationsTable tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+
+        if (currentSort.column === column) {
+            currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            currentSort.column = column;
+            currentSort.direction = column === 'ipo_name' ? 'asc' : 'desc';
+        }
+
+        rows.sort((a, b) => {
+            const columnIndex = {
+                ipo_name: 0,
+                ipo: 1,
+                share_type: 2,
+                button: 3,
+            };
+
+            if (column === 'created_at') {
+                const aVal = a.dataset.createdAt;
+                const bVal = b.dataset.createdAt;
+                return currentSort.direction === 'asc'
+                    ? aVal.localeCompare(bVal)
+                    : bVal.localeCompare(aVal);
+            }
+
+            const index = columnIndex[column];
+            const aVal = a.cells[index].textContent.toLowerCase().trim();
+            const bVal = b.cells[index].textContent.toLowerCase().trim();
+            return currentSort.direction === 'asc'
+                ? aVal.localeCompare(bVal)
+                : bVal.localeCompare(aVal);
+        });
+
+        rows.forEach(row => tbody.appendChild(row));
+
+        document.querySelectorAll('#applicationsTable th.sortable').forEach(th => {
+            th.classList.remove('asc', 'desc');
+        });
+        const activeHeader = document.querySelector(`#applicationsTable th[data-sort="${column}"]`);
+        if (activeHeader) {
+            activeHeader.classList.add(currentSort.direction);
+        }
+    }
+
+    document.getElementById('searchInput').addEventListener('keyup', filterAndDisplay);
+    document.getElementById('filterButton').addEventListener('change', filterAndDisplay);
+
+    document.querySelectorAll('#applicationsTable th.sortable').forEach(th => {
+        th.addEventListener('click', function() {
+            sortTable(this.dataset.sort);
+        });
+    });
+</script>
+{% endblock %}

@@ -8,8 +8,8 @@ from time import perf_counter
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 
-from database.database import get_db
-from database.models import Result, User, UserResult
+from database.accessors import get_accessor
+from database.schemas import ResultCreate, UserResultCreate, UserResultUpdate
 from utils.helpers import get_dir_path, get_fernet_key, get_logger
 
 # API Base URL
@@ -237,7 +237,7 @@ async def process_user(user_data: List, session: requests.Session) -> Dict:
 
         # Process each application
         async with db_lock:
-            with get_db() as db:
+            with get_accessor() as db:
                 for app in applications:
                     company_share_id = app.get("companyShareId")
                     scrip = app.get("scrip")
@@ -250,25 +250,16 @@ async def process_user(user_data: List, session: requests.Session) -> Dict:
                         continue
 
                     # Get or create Result entry
-                    result = db.query(Result).filter(
-                        Result.company_share_id == company_share_id
-                    ).first()
-
-                    if not result:
-                        result = Result(
+                    result = db.results.get_or_create(
+                        ResultCreate(
                             company_share_id=company_share_id,
                             script=scrip,
                             share_type_name=share_type_name,
-                            company_name=company_name
+                            company_name=company_name,
                         )
-                        db.add(result)
-                        db.commit()
-                        db.refresh(result)
-                        log.debug(f"Created new result entry for {scrip} ({company_name})")
+                    )
 
-                    user_result = db.query(UserResult).filter(
-                        UserResult.applicant_form_id == applicant_form_id
-                    ).first()
+                    user_result = db.user_results.get_by_applicant_form_id(applicant_form_id)
                     if user_result:
                         # user_result.applied_date is str in 2026-04-06T14:27:38Z
                         if user_result.applied_date and datetime.strptime(user_result.applied_date, "%Y-%m-%dT%H:%M:%SZ") < datetime.now() - timedelta(days=30):
@@ -293,17 +284,12 @@ async def process_user(user_data: List, session: requests.Session) -> Dict:
                     value = f"{status_name} - {reason_or_remark or ''}"
 
                     if user_result:
-                        # Update existing record
-                        user_result.applied_date = applied_date
-                        user_result.amount = amount
-                        user_result.reason_or_remark = reason_or_remark
-                        user_result.meroshare_remark = meroshare_remark
-                        user_result.received_kitta = received_kitta
-                        user_result.value = value
                         log.debug(f"Updated result for {name} - {scrip}")
                     else:
-                        # Create new record
-                        user_result = UserResult(
+                        log.debug(f"Created new result for {name} - {scrip}")
+
+                    db.user_results.upsert(
+                        UserResultCreate(
                             user_id=user_id,
                             result_id=result.id,
                             applicant_form_id=applicant_form_id,
@@ -313,12 +299,17 @@ async def process_user(user_data: List, session: requests.Session) -> Dict:
                             meroshare_remark=meroshare_remark,
                             received_kitta=received_kitta,
                             type=result_type,
-                            value=value
-                        )
-                        db.add(user_result)
-                        log.debug(f"Created new result for {name} - {scrip}")
-
-                    db.commit()
+                            value=value,
+                        ),
+                        UserResultUpdate(
+                            applied_date=applied_date,
+                            amount=amount,
+                            reason_or_remark=reason_or_remark,
+                            meroshare_remark=meroshare_remark,
+                            received_kitta=received_kitta,
+                            value=value,
+                        ),
+                    )
 
                 log.info(f"Successfully processed {len(applications)} applications for {name}")
 
@@ -366,8 +357,8 @@ async def ipo_result_async(user_delay: int = 5):
 
     # Load all users from database
     try:
-        with get_db() as db:
-            users = db.query(User).all()
+        with get_accessor() as db:
+            users = db.users.list_all()
             if not users:
                 log.warning("No users found in database")
                 return

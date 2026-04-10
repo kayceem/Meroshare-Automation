@@ -6,7 +6,7 @@ import asyncio
 import requests
 from time import perf_counter
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from database.database import get_db
 from database.models import Result, User, UserResult
@@ -266,6 +266,14 @@ async def process_user(user_data: List, session: requests.Session) -> Dict:
                         db.refresh(result)
                         log.debug(f"Created new result entry for {scrip} ({company_name})")
 
+                    user_result = db.query(UserResult).filter(
+                        UserResult.applicant_form_id == applicant_form_id
+                    ).first()
+                    if user_result:
+                        # user_result.applied_date is str in 2026-04-06T14:27:38Z
+                        if user_result.applied_date and datetime.strptime(user_result.applied_date, "%Y-%m-%dT%H:%M:%SZ") < datetime.now() - timedelta(days=30):
+                            log.debug(f"Skipping application {applicant_form_id} for {name} - applied date is recent")
+                            continue
                     # Get application details
                     details = get_application_details(auth_token, applicant_form_id)
                     if not details:
@@ -279,11 +287,6 @@ async def process_user(user_data: List, session: requests.Session) -> Dict:
                     meroshare_remark = details.get("meroshareRemark")
                     received_kitta = details.get("receivedKitta", 0)
                     status_name = details.get("statusName", "")
-
-                    # Create or update UserResult
-                    user_result = db.query(UserResult).filter(
-                        UserResult.applicant_form_id == applicant_form_id
-                    ).first()
 
                     # Legacy fields for compatibility
                     result_type = share_type_name
@@ -495,7 +498,7 @@ async def ipo_result_async(user_delay: int = 5):
     }
 
 
-def ipo_result(user_delay: int = 5):
+def ipo_result(user_delay: int = 3):
     """
     Synchronous wrapper for ipo_result_async.
 

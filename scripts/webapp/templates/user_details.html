@@ -89,7 +89,7 @@
                 </td>
                 <td>
                     <small class="{% if result.received_kitta > 0 %}text-success{% else %}text-danger{% endif %}">
-                        {{ result.meroshare_remark or result.reason_or_remark or '—' }}
+                        {{ result.value or result.meroshare_remark or result.reason_or_remark or '—' }}
                     </small>
                 </td>
             </tr>

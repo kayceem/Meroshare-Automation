@@ -61,6 +61,7 @@ def user_details(user_id):
                 'status': user_result.value,
                 'meroshare_remark': user_result.meroshare_remark,
                 'reason_or_remark': user_result.reason_or_remark,
+                'value': user_result.value
             })
 
     return render_template('user_details.html', user=user, results=results_data)
@@ -121,6 +122,7 @@ def company_details(company_id):
                 'status': user_result.value,
                 'meroshare_remark': user_result.meroshare_remark,
                 'reason_or_remark': user_result.reason_or_remark,
+                'value': user_result.value
             })
 
     return render_template('company_details.html', company=result, users=users_data)

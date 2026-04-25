@@ -10,7 +10,7 @@ load_dotenv()
 
 USERS = []
 options = ["1", "2", "3", "4", "5", "6"]
-sub_options = ["1", "2", "3", "4"]
+sub_options = ["1", "2", "3", "4", "5"]
 DIR_PATH = get_dir_path()
 
 log = get_logger("generator")
@@ -41,7 +41,8 @@ def load_data_base():
                     "passsword": user.passsword,
                     "crn": user.crn,
                     "pin": user.pin,
-                    "account": user.account
+                    "account": user.account,
+                    "apply_ipo": user.apply_ipo,
                 }
                 USERS.append(user_dict)
             return True
@@ -87,6 +88,7 @@ def sub_menu(user_exists=0):
             print("2. Update PIN")
             print("3. Cancel")
             print("4. Update CRN")
+            print("5. Update IPO Application Status")
             print()
             option = input("Choose one option: ")
             if option in sub_options:
@@ -109,6 +111,7 @@ def sub_menu(user_exists=0):
     crn = input("Enter crn: ").strip()
     passwd = fernet.encrypt(passwd.encode()).decode()
     pin = fernet.encrypt(str(pin).encode()).decode()
+    apply_ipo = input("Apply for IPO? (y/n): ").strip().lower() in {"y", "yes", "1", "true"}
     USERS.append({
         "name": name.upper(),
         "dp": dp,
@@ -116,7 +119,8 @@ def sub_menu(user_exists=0):
         "passsword": passwd,
         "crn": crn,
         "pin": pin,
-        "account": account_number
+        "account": account_number,
+        "apply_ipo": apply_ipo,
     })
     return True
 
@@ -127,8 +131,8 @@ def check_user(user_name):
     return False
 
 
-def update_pin_or_passwd(user_name, pin=0, passwd=0, crn=0):
-    if pin == passwd == crn == 1:
+def update_pin_or_passwd(user_name, pin=0, passwd=0, crn=0, apply_ipo=0):
+    if pin == passwd == crn == apply_ipo == 1:
         return False
 
     if pin == 1:
@@ -169,7 +173,18 @@ def update_pin_or_passwd(user_name, pin=0, passwd=0, crn=0):
                 continue
             user['crn'] = new_crn
             return True
-
+    if apply_ipo == 1:
+        while True:
+            try:
+                new_apply_ipo = input("Apply for IPO? (y/n): ").strip().lower() in {"y", "yes", "1", "true"}
+                break
+            except:
+                return False
+        for user in USERS:
+            if user_name != user.get('name').upper():
+                continue
+            user['apply_ipo'] = new_apply_ipo
+            return True
 
 def update_user():
     user_name = input("Enter user name: ").upper().strip()
@@ -210,6 +225,13 @@ def update_user():
             return False
         return True
 
+    if option == "5":
+        val = update_pin_or_passwd(user_name, pin=0, passwd=0, crn=0, apply_ipo=1)
+        if not val:
+            print("Could not update IPO application status!")
+            input()
+            return False
+        return True
 
 def add_user():
     added = sub_menu()
@@ -257,7 +279,8 @@ def import_from_csv():
                         "passsword": passwd,
                         "crn": row["crn"].strip(),
                         "pin": pin,
-                        "account": row["account"].strip()
+                        "account": row["account"].strip(),
+                        "apply_ipo": str(row.get("apply_ipo", "")).strip().lower() in {"1", "true", "yes", "y"},
                     }
 
                     # Skip duplicates

@@ -1,7 +1,7 @@
 from database.database import Base, DIR_PATH, get_db, engine
 from sqlalchemy.sql.expression import  text
 from sqlalchemy.sql.sqltypes import TIMESTAMP
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import relationship
 
@@ -16,6 +16,7 @@ class User(Base):
     crn = Column(String(255), nullable=False)
     pin = Column(String(255), nullable=False)
     account = Column(String(255), nullable=False)
+    apply_ipo = Column(Boolean, nullable=False, default=False, server_default=text("0"))
     created_at = Column(TIMESTAMP(timezone=True),server_default=text('CURRENT_TIMESTAMP'), nullable=False)
 
     user_results = relationship("UserResult", back_populates="user", cascade="all, delete-orphan")
@@ -89,4 +90,17 @@ class Application(Base):
 #             user = User(name=data[0], boid=data[2], dp=data[1], passsword=data[3], crn=data[4], pin=data[5], account=data[6])
 #             db.add(user)
 #             db.commit()
+
+
+def ensure_user_apply_ipo_column():
+    with engine.begin() as connection:
+        columns = connection.exec_driver_sql("PRAGMA table_info(users)").fetchall()
+        column_names = {column[1] for column in columns}
+        if "apply_ipo" not in column_names:
+            connection.exec_driver_sql(
+                "ALTER TABLE users ADD COLUMN apply_ipo BOOLEAN NOT NULL DEFAULT 0"
+            )
+
+
 Base.metadata.create_all(engine)
+ensure_user_apply_ipo_column()

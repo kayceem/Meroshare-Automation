@@ -8,7 +8,7 @@ from pathlib import Path
 def get_dir_path() -> Path:
     return Path(__file__).parent.parent
     
-def get_logger(app="app", level=logging.DEBUG):
+def get_logger(app="app", level=logging.INFO):
     logs_dir = os.path.join(get_dir_path(), "logs")
     os.makedirs(logs_dir, exist_ok=True)
     logging.basicConfig(

@@ -345,7 +345,7 @@ async def ipo_async(skip_input, headless):
 
     with get_accessor() as db:
         if skip_input:
-            users = db.users.list_all()
+            users = db.users.list_all(apply_ipo=True)
             if not users:
                 log.debug("No users available")
                 return

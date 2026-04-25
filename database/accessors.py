@@ -29,8 +29,11 @@ class UserAccessor:
     def __init__(self, session: Session):
         self.session = session
 
-    def list_all(self) -> list[UserRead]:
-        users = self.session.query(User).all()
+    def list_all(self, apply_ipo: bool | None = None) -> list[UserRead]:
+        query = self.session.query(User)
+        if apply_ipo is not None:
+            query = query.filter(User.apply_ipo == apply_ipo)
+        users = query.all()
         return [UserRead.model_validate(user) for user in users]
 
     def get_by_id(self, user_id: int) -> UserRead | None:
@@ -230,9 +233,10 @@ class ReportAccessor:
                     share_type=result.share_type_name,
                     total_applications=total_apps,
                     allotted=allotted_apps,
+                    created_at=result.created_at,
                 )
             )
-
+        company_items = sorted(company_items, key=lambda x: x.created_at or "", reverse=True)
         return company_items
 
     def get_company_details(self, company_id: int) -> tuple[ResultRead | None, list[CompanyUserResult]]:

@@ -284,9 +284,9 @@ async def process_user(user_data: List, session: requests.Session) -> Dict:
                     value = f"{status_name} - {reason_or_remark or ''}"
 
                     if user_result:
-                        log.debug(f"Updated result for {name} - {scrip}")
+                        log.info(f"Updated result for {name} - {scrip}")
                     else:
-                        log.debug(f"Created new result for {name} - {scrip}")
+                        log.info(f"Created new result for {name} - {scrip}")
 
                     db.user_results.upsert(
                         UserResultCreate(

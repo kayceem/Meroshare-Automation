@@ -15,6 +15,7 @@ class UserBase(BaseModel):
     crn: str
     pin: str
     account: str
+    apply_ipo: bool = False
 
 
 class UserUpsert(UserBase):
@@ -110,6 +111,7 @@ class CompanyStats(BaseModel):
     share_type: str
     total_applications: int
     allotted: int
+    created_at: datetime | None = None
 
 
 class CompanyUserResult(BaseModel):

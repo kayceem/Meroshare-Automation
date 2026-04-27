@@ -265,6 +265,9 @@ async def process_user(user_data: List, session: requests.Session) -> Dict:
                         if user_result.applied_date and datetime.strptime(user_result.applied_date, "%Y-%m-%dT%H:%M:%SZ") < datetime.now() - timedelta(days=30):
                             log.debug(f"Skipping application {applicant_form_id} for {name} - applied date is recent")
                             continue
+                        if "alloted" in user_result.value.lower():
+                            log.debug(f"Skipping application {applicant_form_id} for {name} - already alloted")
+                            continue
                     # Get application details
                     details = get_application_details(auth_token, applicant_form_id)
                     if not details:
